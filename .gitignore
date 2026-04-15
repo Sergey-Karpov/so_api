@@ -18,8 +18,6 @@ __pycache__/
 .DS_Store
 
 # Model files (большие бинарные файлы)
-*.pkl
-*.joblib
 *.h5
 
 # Data
