@@ -8,6 +8,23 @@ from sklearn.base import BaseEstimator, TransformerMixin
 # ============================================
 # ВСЕ КЛАССЫ - ОБЯЗАТЕЛЬНО ДО ЗАГРУЗКИ МОДЕЛИ!
 # ============================================
+class OutlierHandler(BaseEstimator, TransformerMixin):
+    def __init__(self, column='avg'):
+        self.column = column
+        self.lower_bound = None
+        self.upper_bound = None
+    def fit(self, X, y=None):
+        q1 = X[self.column].quantile(0.25)
+        q3 = X[self.column].quantile(0.75)
+        iqr = q3 - q1
+        self.lower_bound = q1 - 1.5 * iqr
+        self.upper_bound = q3 + 1.5 * iqr
+        return self
+    def transform(self, X, y=None):
+        X_copy = X.copy()
+        X_copy[self.column] = X_copy[self.column].clip(self.lower_bound, self.upper_bound)
+        return X_copy
+
 
 class FeatureCreator(BaseEstimator, TransformerMixin):
     def __init__(self, use_predict=False):
