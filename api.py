@@ -12,40 +12,6 @@ from transformers import (
     ColumnDropper
 )
 
-
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ручное применение всех трансформеров в правильной последовательности
-    """
-    # 1. Валидация входных признаков
-    validator = InputFeatureValidator(input_features)
-    df = validator.transform(df)
-
-    # 2. Создание новых признаков (ratio, multi)
-    feature_creator = FeatureCreator(use_predict=True)
-    df = feature_creator.transform(df)
-
-    # 3. Расчет долей сетей
-    share_calc = ShareCalculator()
-    df = share_calc.transform(df)
-
-    # 4. Проверка population (уже есть во входных данных)
-    population = PopulationTransformer(use_predict=True)
-    df = population.transform(df)
-
-    # 5. Проверка market_share (уже есть во входных данных)
-    market_share = MarketShareTransformer(use_predict=True)
-    df = market_share.transform(df)
-
-    # 6. Удаление ненужных колонок
-    column_dropper = ColumnDropper([
-        'aushan_count_in_city', 'detmir_count_in_city',
-        'lenta_count_in_city', 'top_chains_stores_count'
-    ])
-    df = column_dropper.transform(df)
-
-    return df
-
 class SalesPredictionInput(BaseModel):
     chain: str
     cereals: int
@@ -79,6 +45,40 @@ try:
 except Exception as e:
     print(f"Ошибка загрузки модели {e}")
     raise
+
+
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ручное применение всех трансформеров в правильной последовательности
+    """
+    # 1. Валидация входных признаков
+    validator = InputFeatureValidator(input_features)
+    df = validator.transform(df)
+
+    # 2. Создание новых признаков (ratio, multi)
+    feature_creator = FeatureCreator(use_predict=True)
+    df = feature_creator.transform(df)
+
+    # 3. Расчет долей сетей
+    share_calc = ShareCalculator()
+    df = share_calc.transform(df)
+
+    # 4. Проверка population (уже есть во входных данных)
+    population = PopulationTransformer(use_predict=True)
+    df = population.transform(df)
+
+    # 5. Проверка market_share (уже есть во входных данных)
+    market_share = MarketShareTransformer(use_predict=True)
+    df = market_share.transform(df)
+
+    # 6. Удаление ненужных колонок
+    column_dropper = ColumnDropper([
+        'aushan_count_in_city', 'detmir_count_in_city',
+        'lenta_count_in_city', 'top_chains_stores_count'
+    ])
+    df = column_dropper.transform(df)
+
+    return df
 
 app = FastAPI(
     title=metadata.get("name", 'Sales prediction API'),
