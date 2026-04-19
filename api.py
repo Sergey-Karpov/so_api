@@ -3,7 +3,14 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
 
-from transformers import *
+from transformers import (
+    FeatureCreator,
+    ShareCalculator,
+    PopulationTransformer,
+    MarketShareTransformer,
+    InputFeatureValidator,
+    ColumnDropper
+)
 
 class SalesPredictionInput(BaseModel):
     chain: str
@@ -111,15 +118,15 @@ async def predict(input_data: SalesPredictionInput):
     return SalesPredictionResult(prediction=int(prediction))
 
 
-if __name__ == "__main__":
-    import uvicorn
-
-    print(f"Запуск {metadata.get('name', 'Sales Prediction API')}")
-    print(f"Версия: {metadata.get('version', '1.0.0')}")
-    print(f"Автор: {metadata.get('author', 'Unknown')}")
-    print(f"R2 на тесте: {test_metrics.get('R2', 'N/A')}")
-    print("=" * 60)
-    print("Health check: http://localhost:8000/health")
-    print("Предсказание: POST http://localhost:8000/predict")
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#
+#     print(f"Запуск {metadata.get('name', 'Sales Prediction API')}")
+#     print(f"Версия: {metadata.get('version', '1.0.0')}")
+#     print(f"Автор: {metadata.get('author', 'Unknown')}")
+#     print(f"R2 на тесте: {test_metrics.get('R2', 'N/A')}")
+#     print("=" * 60)
+#     print("Health check: http://localhost:8000/health")
+#     print("Предсказание: POST http://localhost:8000/predict")
+#
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
