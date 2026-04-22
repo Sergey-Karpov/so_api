@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import pandas as pd
 
 from transformers import (
+    OutlierHandler,
     FeatureCreator,
     ShareCalculator,
     PopulationTransformer,
@@ -11,6 +12,48 @@ from transformers import (
     InputFeatureValidator,
     ColumnDropper
 )
+
+
+def predict_from_input(input_data):
+    """
+    Функция для предсказания на основе входных данных
+
+    Параметры:
+    input_data: pandas DataFrame с колонками (8 признаков, БЕЗ city!):
+        - chain: str - сеть магазина
+        - cereals: float - количество SKU каш
+        - milk: float - количество SKU молока
+        - population: int - население города
+        - market_share: float - доля рынка
+        - aushan_count_in_city: int - кол-во магазинов Ашан в городе
+        - detmir_count_in_city: int - кол-во магазинов Детский мир в городе
+        - lenta_count_in_city: int - кол-во магазинов Лента в городе
+
+    Возвращает:
+    predictions: numpy array с предсказанными значениями avg
+    """
+    # Применяем pipeline предобработки
+    input_prepared = loaded_pipeline.transform(input_data)
+
+    # One-hot encoding для chain
+    input_encoded = pd.get_dummies(input_prepared, columns=['chain'], drop_first=True)
+
+    # Выравниваем колонки
+    for col in feature_columns:
+        if col not in input_encoded.columns:
+            input_encoded[col] = 0
+
+    # Удаляем лишние колонки
+    input_encoded = input_encoded[feature_columns]
+
+    # Масштабирование
+    input_scaled = loaded_scaler.transform(input_encoded)
+
+    # Предсказание
+    predictions = loaded_model.predict(input_scaled)
+
+    return predictions
+
 
 class SalesPredictionInput(BaseModel):
     chain: str
@@ -33,52 +76,15 @@ class SalesPredictionError(BaseModel):
 
 try:
     artifacts = joblib.load("model_artifacts.joblib")
-    model = artifacts["model"]
-    scaler = artifacts["scaler"]
-    prediction_pipeline = artifacts["prediction_pipeline"]
-    feature_columns = artifacts.get("feature_columns", [])
-    input_features = artifacts.get("input_features", [])
-    metadata = artifacts.get("metadata", {})
-    train_metrics = artifacts.get("train_metrics", {})
-    test_metrics = artifacts.get("test_metrics", {})
-
+    loaded_pipeline = artifacts['prediction_pipeline']
+    loaded_scaler = artifacts['scaler']
+    loaded_model = artifacts['model']
+    feature_columns = artifacts['feature_columns']
+    metadata = artifacts['metadata']
+    print("✅ Модель успешно загружена")
 except Exception as e:
-    print(f"Ошибка загрузки модели {e}")
+    print(f"❌ Ошибка загрузки модели: {e}")
     raise
-
-
-def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ручное применение всех трансформеров в правильной последовательности
-    """
-    # 1. Валидация входных признаков
-    validator = InputFeatureValidator(input_features)
-    df = validator.transform(df)
-
-    # 2. Создание новых признаков (ratio, multi)
-    feature_creator = FeatureCreator(use_predict=True)
-    df = feature_creator.transform(df)
-
-    # 3. Расчет долей сетей
-    share_calc = ShareCalculator()
-    df = share_calc.transform(df)
-
-    # 4. Проверка population (уже есть во входных данных)
-    population = PopulationTransformer(use_predict=True)
-    df = population.transform(df)
-
-    # 5. Проверка market_share (уже есть во входных данных)
-    market_share = MarketShareTransformer(use_predict=True)
-    df = market_share.transform(df)
-
-    # 6. Удаление ненужных колонок
-    column_dropper = ColumnDropper([
-        'aushan_count_in_city', 'detmir_count_in_city',
-        'lenta_count_in_city', 'top_chains_stores_count'
-    ])
-    df = column_dropper.transform(df)
-
-    return df
 
 app = FastAPI(
     title=metadata.get("name", 'Sales prediction API'),
@@ -99,24 +105,15 @@ async def root():
 async def health_check():
     return {
         "status": "active",
-        "model_loaded": model is not None,
+        "model_loaded": loaded_model is not None,
     }
 
 @app.post('/predict',
           response_model=SalesPredictionResult,)
 async def predict(input_data: SalesPredictionInput):
     df = pd.DataFrame([input_data.model_dump()])
-    df_prepared = preprocess_data(df)
-    input_encoded = pd.get_dummies(df_prepared, columns=['chain'], drop_first=True)
-    for col in feature_columns:
-        if col not in input_encoded.columns:
-            input_encoded[col] = 0
-
-    input_encoded = input_encoded[feature_columns]
-    input_scaled = scaler.transform(input_encoded)
-    prediction = model.predict(input_scaled)[0]
-    return SalesPredictionResult(prediction=int(prediction))
-
+    predictions = predict_from_input(df)
+    return SalesPredictionResult(prediction=int(predictions[0]))
 
 # if __name__ == "__main__":
 #     import uvicorn
