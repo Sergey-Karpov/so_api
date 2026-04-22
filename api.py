@@ -2,6 +2,7 @@ import joblib
 from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
+import numpy as np
 
 class SalesPredictionInput(BaseModel):
     chain: str
@@ -23,7 +24,7 @@ class SalesPredictionError(BaseModel):
     success: bool = False
 
 try:
-    artifacts = joblib.load("model_artifacts.joblib")
+    artifacts = joblib.load("simple_model.joblib")
     model = artifacts['model']
     scaler = artifacts['scaler']
     feature_columns = artifacts['feature_columns']
