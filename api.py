@@ -3,58 +3,6 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import pandas as pd
 
-from transformers import (
-    OutlierHandler,
-    FeatureCreator,
-    ShareCalculator,
-    PopulationTransformer,
-    MarketShareTransformer,
-    InputFeatureValidator,
-    ColumnDropper
-)
-
-
-def predict_from_input(input_data):
-    """
-    Функция для предсказания на основе входных данных
-
-    Параметры:
-    input_data: pandas DataFrame с колонками (8 признаков, БЕЗ city!):
-        - chain: str - сеть магазина
-        - cereals: float - количество SKU каш
-        - milk: float - количество SKU молока
-        - population: int - население города
-        - market_share: float - доля рынка
-        - aushan_count_in_city: int - кол-во магазинов Ашан в городе
-        - detmir_count_in_city: int - кол-во магазинов Детский мир в городе
-        - lenta_count_in_city: int - кол-во магазинов Лента в городе
-
-    Возвращает:
-    predictions: numpy array с предсказанными значениями avg
-    """
-    # Применяем pipeline предобработки
-    input_prepared = loaded_pipeline.transform(input_data)
-
-    # One-hot encoding для chain
-    input_encoded = pd.get_dummies(input_prepared, columns=['chain'], drop_first=True)
-
-    # Выравниваем колонки
-    for col in feature_columns:
-        if col not in input_encoded.columns:
-            input_encoded[col] = 0
-
-    # Удаляем лишние колонки
-    input_encoded = input_encoded[feature_columns]
-
-    # Масштабирование
-    input_scaled = loaded_scaler.transform(input_encoded)
-
-    # Предсказание
-    predictions = loaded_model.predict(input_scaled)
-
-    return predictions
-
-
 class SalesPredictionInput(BaseModel):
     chain: str
     cereals: int
@@ -76,15 +24,55 @@ class SalesPredictionError(BaseModel):
 
 try:
     artifacts = joblib.load("model_artifacts.joblib")
-    loaded_pipeline = artifacts['prediction_pipeline']
-    loaded_scaler = artifacts['scaler']
-    loaded_model = artifacts['model']
+    model = artifacts['model']
+    scaler = artifacts['scaler']
     feature_columns = artifacts['feature_columns']
-    metadata = artifacts['metadata']
+    metadata = artifacts.get('metadata', {})
     print("✅ Модель успешно загружена")
 except Exception as e:
     print(f"❌ Ошибка загрузки модели: {e}")
     raise
+
+
+def predict_from_input(df: pd.DataFrame) -> np.ndarray:
+    """
+    Ручная предобработка, копирующая логику pipeline БЕЗ использования кастомных классов
+    """
+    # Создаем копию, чтобы не изменять оригинал
+    data = df.copy()
+
+    # 1. Создаем новые признаки (как FeatureCreator)
+    data["cereals_milk_ratio"] = data["cereals"] / (data["milk"] + 1)
+    data["cereals_milk_multi"] = data["cereals"] * data["milk"]
+
+    # 2. Рассчитываем доли сетей (как ShareCalculator)
+    total_stores = data['aushan_count_in_city'] + data['detmir_count_in_city'] + data['lenta_count_in_city']
+    denominator = total_stores.replace(0, 1)
+    data['aushan_count_share_in_city'] = data['aushan_count_in_city'] / denominator
+    data['detmir_count_share_in_city'] = data['detmir_count_in_city'] / denominator
+    data['lenta_count_share_in_city'] = data['lenta_count_in_city'] / denominator
+
+    # 3. Удаляем исходные колонки с количествами (как ColumnDropper)
+    data = data.drop(columns=['aushan_count_in_city', 'detmir_count_in_city', 'lenta_count_in_city'])
+
+    # 4. One-hot encoding для chain
+    data = pd.get_dummies(data, columns=['chain'], drop_first=True)
+
+    # 5. Выравниваем колонки с обучающими данными
+    for col in feature_columns:
+        if col not in data.columns:
+            data[col] = 0
+
+    data = data[feature_columns]
+
+    # 6. Масштабирование
+    scaled = scaler.transform(data)
+
+    # 7. Предсказание
+    predictions = model.predict(scaled)
+
+    return predictions
+
 
 app = FastAPI(
     title=metadata.get("name", 'Sales prediction API'),
@@ -105,7 +93,7 @@ async def root():
 async def health_check():
     return {
         "status": "active",
-        "model_loaded": loaded_model is not None,
+        "model_loaded": model is not None,
     }
 
 @app.post('/predict',
