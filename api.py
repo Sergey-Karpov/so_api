@@ -1,5 +1,6 @@
 import joblib
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
@@ -79,6 +80,19 @@ app = FastAPI(
     title=metadata.get("name", 'Sales prediction API'),
     version=metadata.get("version", '0.0.1'),
     description=metadata.get("description", ''),
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+
+        # TODO Заменить на домен github pages
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/")
