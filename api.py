@@ -101,7 +101,10 @@ async def root():
         "message": f"Welcome to {metadata.get('name', 'Sales prediction API')}!",
         "version": metadata.get("version", '0.0.1'),
         "type": metadata.get("type", 'random_forest_regressor'),
-        "status": "active"
+        "status": "active",
+        "test_metrics": metadata.get("test_metrics", {}),
+        "input_features": metadata.get("input_features", {}),
+        "author": metadata.get("author", {}),
     }
 
 @app.get('/health')
