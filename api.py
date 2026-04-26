@@ -86,7 +86,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        'https://sergey-karpov.github.io/so_prediction_frontend/'
+        'https://sergey-karpov.github.io'
         # TODO Заменить на домен github pages
     ],
     allow_credentials=True,
